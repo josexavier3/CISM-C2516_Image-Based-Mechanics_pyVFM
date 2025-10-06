@@ -16,6 +16,11 @@ The code in this repository uses Jupyter Notebooks (.ipynb) that can be run thro
 
 To run the code, simply open your Jupyter environment, navigate to the location of the files and open any of the python notebooks (.ipynb files) found in the folders. The subdirectories contain python files or experimental data files that will be called in the main python notebooks.
 
+## Content
+
+Based on:
+"The Virtual Fields Methods: Extracting constitutive mechanical parameters
+from full-field deformation measurements" by F. Pierron, M. Grédiac
 
 ## Authors and Acknowledgment
 

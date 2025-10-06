@@ -1,5 +1,9 @@
 """
 Virtual Fields Method: Three sets of virtual fields with detailed validation
+
+Based on:
+"The Virtual Fields Methods: Extracting constitutive mechanical parameters
+from full-field deformation measurements" by F. Pierron, M. Grédiac
 """
 
 import numpy as np

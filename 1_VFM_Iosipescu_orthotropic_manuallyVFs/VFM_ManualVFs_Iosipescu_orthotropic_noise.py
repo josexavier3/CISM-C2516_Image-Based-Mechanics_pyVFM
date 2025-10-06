@@ -1,6 +1,10 @@
 """
 Virtual Fields Method: Noise Analysis version adapted for current data structure
 Based on Iosipescu_orthotropic_VFM.py with Monte Carlo noise simulation
+
+Based on:
+"The Virtual Fields Methods: Extracting constitutive mechanical parameters
+from full-field deformation measurements" by F. Pierron, M. Grédiac
 """
 
 import numpy as np
