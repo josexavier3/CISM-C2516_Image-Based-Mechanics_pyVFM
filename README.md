@@ -22,11 +22,6 @@ Based on:
 "The Virtual Fields Methods: Extracting constitutive mechanical parameters
 from full-field deformation measurements" by F. Pierron, M. Grédiac
 
-## Authors and Acknowledgment
-
-**Instructor**: Prof. José Xavier 
-**Course**: CISM C2516 - Advanced Course on Image-Based Mechanics
-
 ## License
 
 This project is licensed under the MIT License.
@@ -37,7 +32,7 @@ You are free to:
 - Share and distribute the code
 - Use commercially
 
-**MIT License** - Copyright (c) 2025 Xavier Rethore / KU Leuven
+**MIT License** - Copyright (c) 2025 José Xavier 
 
 ## Reporting Bugs or Issues
 
