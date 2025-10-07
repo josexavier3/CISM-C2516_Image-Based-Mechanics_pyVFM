@@ -1,6 +1,27 @@
 """
-Virtual Fields Method: Optimized Special Piecewise Virtual Fields with Noise
-Python implementation with white noise simulation capability
+Virtual Fields Method (VFM)
+---------------------------
+Case Study: Unnotched Iosipescu Test for Orthotropic Material
+
+Based on:
+"The Virtual Fields Method: Extracting constitutive mechanical parameters
+from full-field deformation measurements" by F. Pierron, M. Grédiac
+
+Developed by:
+José Xavier
+Universidade NOVA de Lisboa, FCT NOVA, UNIDEMI
+https://userweb.fct.unl.pt/~jmc.xavier/index.html
+
+Course reference:
+CISM Advanced School: "Image-Based Mechanics: An Overview of Experimental
+and Numerical Approaches"
+Udine, Italy, October 6-10, 2025
+Coordinated by: Julien Réthoré and José Xavier
+
+Lecture topic: "The virtual fields method: extracting material parameters
+from heterogeneous fields: hands-on session"
+
+For more information: https://cism.it/en/activities/courses/C2516/
 """
 
 import numpy as np
