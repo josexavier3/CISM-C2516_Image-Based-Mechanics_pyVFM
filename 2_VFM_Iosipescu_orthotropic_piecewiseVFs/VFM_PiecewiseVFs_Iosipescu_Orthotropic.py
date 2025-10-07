@@ -9,7 +9,7 @@ from full-field deformation measurements" by F. Pierron, M. Grédiac
 
 Developed by:
 José Xavier
-Universidade NOVA de Lisboa, FCT NOVA, UNIDEMI
+Universidade NOVA de Lisboa, NOVA FCT, UNIDEMI
 https://userweb.fct.unl.pt/~jmc.xavier/index.html
 
 Course reference:
