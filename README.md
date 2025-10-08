@@ -56,3 +56,10 @@ Feel free to contact [jmc.xavier@fct.unl.pt] should you encounter any mistakes o
 
 For more information about the CISM course and related materials, visit:  
 https://cism.it/en/activities/courses/C2516/
+
+
+### License
+
+This code is free for non-profit academic and research use.
+It is released under the GNU General Public License v3.0 (GPLv3).
+You may use, modify, and share it, as long as you keep the same GPLv3 licence.
