@@ -1,9 +1,13 @@
 .idea
 .vscode
-Others
-Docs
+anaconda_projects
+.ipynb_checkpoints
+.jupyter
+.virtual_documents
 
 Lectures
+Others
+Docs
 
 Lec01_Xavier.pdf
 Lec02_Xavier.pdf
