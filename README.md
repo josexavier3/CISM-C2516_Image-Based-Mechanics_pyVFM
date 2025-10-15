@@ -50,7 +50,7 @@ dic-preprocessing-scripts/
 ├── fov_calculator/
 │   ├── README.md                      # ✅ Detailed FOV docs
 │   ├── fov_calculator.py
-│   └── fov_calculator_gui_pyside6.py
+│   └── fov_calculator_gui.py
 │
 └── motion_blur_calculator/
     ├── README.md                      # ✅ Detailed Motion Blur docs
