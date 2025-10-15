@@ -44,6 +44,18 @@ VFM_Unnotched_Iosipescu_Test/
 │   └── [Other APDL scripts]
 │
 └── FEM_Iosipescu_Orthotropic.py  # Main Python implementation
+
+dic-preprocessing-scripts/
+│
+├── fov_calculator/
+│   ├── README.md                      # ✅ Detailed FOV docs
+│   ├── fov_calculator.py
+│   └── fov_calculator_gui_pyside6.py
+│
+└── motion_blur_calculator/
+    ├── README.md                      # ✅ Detailed Motion Blur docs
+    ├── motion_blur_calculator.py
+    └── motion_blur_calculator_gui.py
 ```
 
 ### Root Directory Files
