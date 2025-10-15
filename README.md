@@ -1,28 +1,57 @@
-# CISM C2516: Virtual Fields Method - José Xavier
+# CISM C2516: José Xavier
 
 Welcome to the repository for the **Virtual Fields Method (VFM)** hands-on session materials from the CISM Advanced School on [Image-Based Mechanics: An Overview of Experimental and Numerical Approaches](https://cism.it/en/activities/courses/C2516/).
 
-## Course Information
+## 📚 Course Information
 
 **CISM Advanced School**  
-"Image-Based Mechanics: An Overview of Experimental and Numerical Approaches"  
-Udine, Italy, October 6-10, 2025  
-Coordinated by: Julien Réthoré and José Xavier
+*"Image-Based Mechanics: An Overview of Experimental and Numerical Approaches"*
 
-**Lecture Topic:**  
-"The virtual fields method: extracting material parameters from heterogeneous fields: hands-on session"
+- **Location:** Udine, Italy
+- **Dates:** October 6–10, 2025
+- **Course Code:** C2516
+- **Coordinators:** Julien Réthoré and José Xavier
+- **Lecture:** "The virtual fields method: extracting material parameters from heterogeneous fields: hands-on session"
 
-**Instructor:**  
-José Xavier  
+More information: [https://cism.it/en/activities/courses/C2516/](https://cism.it/en/activities/courses/C2516/)
+
+## 👨‍🔬 Author
+
+**José Xavier**  
 Universidade NOVA de Lisboa, NOVA FCT, UNIDEMI  
-https://userweb.fct.unl.pt/~jmc.xavier/index.html
+[https://userweb.fct.unl.pt/~jmc.xavier/](https://userweb.fct.unl.pt/~jmc.xavier/)
 
-## About This Repository
+## 📖 Theoretical Background
 
-This repository contains practical implementations and exercises for Virtual Fields Method (VFM) analysis, focusing on the **Unnotched Iosipescu Test for Orthotropic Material**.
+This implementation is based on the book:
 
-**Based on:**  
-"The Virtual Fields Method: Extracting constitutive mechanical parameters from full-field deformation measurements" by F. Pierron, M. Grédiac
+*"The Virtual Fields Method: Extracting Constitutive Mechanical Parameters from Full-Field Deformation Measurements"*  
+by F. Pierron and M. Grédiac
+
+## 📁 Repository Structure
+```
+VFM_Unnotched_Iosipescu_Test/
+│
+├── 1_manuallyVFs/              # Manual virtual fields implementation
+│   └── [Implementation files for manually defined VFs]
+│
+├── 2_piecewiseVFs/             # Piecewise virtual fields approach
+│   └── [Implementation files for piecewise VFs]
+│
+├── ANSYS_APDL/                 # ANSYS APDL finite element models
+│   ├── Mtransf3D.mac           # Material transformation macro
+│   ├── inputopt.dat            # Input file (23 design variables)
+│   └── [Other APDL scripts]
+│
+└── FEM_Iosipescu_Orthotropic.py  # Main Python implementation
+```
+
+### Root Directory Files
+
+- **C2516_Flyer_Rethore_Xavier.pdf** - Course flyer with detailed information
+- **Lec06_Xavier.pdf** - Lecture slides
+- **Xavier_Introduction.pdf** - Introduction to the VFM methodology
+- **.gitignore** - Git ignore configuration
 
 ## Repository Contents
 
@@ -58,7 +87,7 @@ For more information about the CISM course and related materials, visit:
 https://cism.it/en/activities/courses/C2516/
 
 
-### License
+## 📝 License
 
 This code is free for non-profit academic and research use.
 It is released under the GNU General Public License v3.0 (GPLv3).
