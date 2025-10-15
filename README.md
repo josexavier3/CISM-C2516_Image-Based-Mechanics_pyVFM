@@ -53,12 +53,6 @@ VFM_Unnotched_Iosipescu_Test/
 - **Xavier_Introduction.pdf** - Introduction to the VFM methodology
 - **.gitignore** - Git ignore configuration
 
-## Repository Contents
-
-- **1_VFM_Iosipescu_orthotropic_manuallyVFs**: Manual virtual fields implementation for orthotropic Iosipescu test
-- **2_VFM_Iosipescu_orthotropic_piecewiseVFs**: Piecewise virtual fields approach for orthotropic material identification
-- **C2516_Flyer_Rethore_Xavier.pdf**: Course flyer with detailed information
-
 ## Installation and Usage
 
 The code in this repository uses Jupyter Notebooks (.ipynb) that can be run through a Jupyter Notebook environment. We recommend using the Jupyter Notebook environment provided by Anaconda.
