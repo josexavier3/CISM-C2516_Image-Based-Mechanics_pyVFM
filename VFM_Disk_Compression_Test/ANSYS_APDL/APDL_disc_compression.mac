@@ -1,0 +1,414 @@
+!===============================================================
+! Virtual Fields Method (VFM) - FEM Data Extraction
+!---------------------------------------------------------------
+! ANSYS APDL Script: Disc Compression Test
+! Strain Field Analysis and CSV Data Export
+!
+! Purpose:
+! Extract element-based strain, displacement, and geometric data
+! from ANSYS finite element analysis of disc compression test.
+! Export data in CSV format (semicolon-separated) for Virtual
+! Fields Method (VFM) constitutive parameter identification.
+!
+! Based on:
+! "The Virtual Fields Method: Extracting Constitutive Mechanical
+! Parameters from Full-Field Deformation Measurements"
+! by F. Pierron and M. Grédiac
+!
+! Source Model:
+! APDL_disc_compression.txt
+! - Disc with 45° rotated square creating 5 quadrilateral areas
+! - Material: Isotropic (Steel - E=210GPa, ν=0.3)
+! - Element Type: PLANE182 (4-node quadrilateral, plane stress)
+! - Mesh: Mapped quadrilateral elements
+!
+!===============================================================
+!
+! VARIABLE NAMING CONVENTION
+!===============================================================
+! Geometry Parameters:
+!   RADIUS             = Disc radius [mm]
+!   THICK              = Disc thickness [mm]
+!   FORCE              = Applied compression force [N]
+!   appUy              = Applied vertical displacement [mm]
+!
+! Element Data:
+!   tnEL               = Total number of elements
+!   emin               = Minimum element number
+!   EVOL               = Element volume [mm³]
+!   ELEM_AREA          = Element area [mm²]
+!   TOT_AREA           = Total disc area [mm²]
+!
+! Centroid Coordinates:
+!   Xc, Yc             = Centroid coordinates [mm]
+!   COORD_X, COORD_Y   = Centroid coordinate arrays
+!
+! Displacement Components:
+!   Ux, Uy             = Displacement fields [mm]
+!   DISP_X, DISP_Y     = Displacement arrays
+!
+! Strain Components:
+!   Ex, Ey, Exy        = Strain fields [-] (engineering strain)
+!   STRAIN_X/Y/XY      = Strain arrays
+!   EPEL,X/Y/XY        = Element table elastic strains
+!
+! Boundary Conditions:
+!   NODE_O             = Bottom center node (fully fixed)
+!   NODE_A             = Top center node (prescribed displacement)
+!   REACT_Y            = Reaction force [N]
+!
+!===============================================================
+!
+! OUTPUT FILE FORMAT (CSV - Semicolon Separated)
+!===============================================================
+! Header:
+! Area_mm2; X_Coord; Y_Coord; U_X; U_Y; Strain_X; Strain_Y; Strain_XY
+!
+! Data Columns:
+!   Column 1: Area_mm2       = Element area [mm²]
+!   Column 2: X_Coord        = Centroid X coordinate [mm]
+!   Column 3: Y_Coord        = Centroid Y coordinate [mm]
+!   Column 4: U_X            = X displacement [mm]
+!   Column 5: U_Y            = Y displacement [mm]
+!   Column 6: Strain_X       = Longitudinal strain Exx [-]
+!   Column 7: Strain_Y       = Transverse strain Eyy [-]
+!   Column 8: Strain_XY      = Engineering shear strain Exy [-]
+!
+! Numeric Format:
+!   Areas:         E12.4 (scientific notation)
+!   Coordinates:   F12.6 (fixed-point, mm)
+!   Displacements: E12.4 (scientific notation, mm)
+!   Strains:       E12.4 (scientific notation, dimensionless)
+!
+!===============================================================
+!
+! STRAIN NOTATION
+!===============================================================
+! Strain Components (Lagrangian/Green-Lagrange):
+!   Exx = Longitudinal strain (X direction)
+!   Eyy = Transverse strain (Y direction)
+!   Exy = Engineering shear strain
+!
+! Extracted at element centroid (Gauss point average)
+!
+!===============================================================
+!
+! ELEMENT EXTRACTION PROCEDURE
+!===============================================================
+! 1. Get total element count:
+!    *GET,tnEL,ELEM,,COUNT,,,
+!    *GET,emin,ELEM,,NUM,MIN
+!
+! 2. Define element tables:
+!    ETABLE,etXc,CENT,X       (centroid X)
+!    ETABLE,etYc,CENT,Y       (centroid Y)
+!    ETABLE,etUx,U,X          (displacement X)
+!    ETABLE,etUy,U,Y          (displacement Y)
+!    ETABLE,etEx,EPEL,X       (strain X)
+!    ETABLE,etEy,EPEL,Y       (strain Y)
+!    ETABLE,etExy,EPEL,XY     (shear strain)
+!    ETABLE,EVOL,VOLU         (volume)
+!
+! 3. Extract into arrays:
+!    *VGET,COORD_X(1),ELEM,emin,ETAB,etXc
+!    (repeat for all quantities)
+!
+! 4. Calculate element areas:
+!    *VOPER,ELEM_AREA(1),ELEM_VOLUME(1),DIV,THICK
+!
+! 5. Write CSV:
+!    *CFOPEN,FEM2VFM,csv,,WRITE
+!    *VWRITE,ELEM_AREA(1),';',COORD_X(1),';',...
+!    *CFCLOS
+!
+!===============================================================
+!
+! UNITS
+!===============================================================
+! Default ANSYS Model Units:
+!   Length:     mm
+!   Force:      N
+!   Pressure:   MPa
+!   Density:    kg/mm³
+!
+! Output File Units:
+!   Area:         mm²
+!   Coordinates:  mm
+!   Displacement: mm
+!   Strain:       dimensionless [-]
+!
+!===============================================================
+!
+! VERIFICATION
+!===============================================================
+! Checks Performed:
+!   - Total area summation: *VSCFUN,TOT_AREA,SUM,ELEM_AREA(1)
+!   - Reaction force at support: FSUM at NODE_O
+!   - Force balance: Applied force + Reaction force ≈ 0
+!
+! Output Files:
+!   FEM2VFM.csv          (element field data)
+!   verification.txt     (analysis summary with force balance)
+!
+!===============================================================
+!/COM, End of Header - Script execution begins below
+!===============================================================
+
+/CLEAR
+/PREP7
+
+! ===============================================
+! MATERIAL PROPERTIES (Isotropic)
+! ===============================================
+MP,EX,1,210E3       ! Young's modulus [MPa] (210 GPa - steel)
+MP,PRXY,1,0.3       ! Poisson's ratio
+MP,DENS,1,7850      ! Density [kg/m³] (steel)
+
+! ===============================================
+! GEOMETRY PARAMETERS
+! ===============================================
+*SET,RADIUS,100    ! Disc radius [mm]
+*SET,THICK,3       ! Thickness [mm]
+*SET,FORCE,-5000   ! Applied force [N] (negative = compression)
+*SET,appUy,-0.5    ! Applied displacement [mm] (negative = compression)
+
+! ===============================================
+! ELEMENT TYPE AND REAL CONSTANTS
+! ===============================================
+ET,1,PLANE182
+!ET,1,PLANE183
+KEYOPT,1,3,3        ! Plane stress with thickness
+R,1,THICK           ! Real constant for thickness
+
+! ===============================================
+! CREATE GEOMETRY WITH ROTATED SQUARE INSIDE CIRCLE
+! ===============================================
+
+! Define square size (inscribed in a circle smaller than outer radius)
+*SET,SQUARE_SIZE,RADIUS*0.6    ! Square "radius" (distance from center to vertex)
+
+! Center keypoint
+K,1,0,RADIUS,           ! Center point
+
+! Square vertices (rotated 45° - diamond orientation)
+K,2, SQUARE_SIZE,RADIUS,           ! Right vertex (0°)
+K,3, 0,SQUARE_SIZE+RADIUS,          ! Top vertex (90°)
+K,4, -SQUARE_SIZE,RADIUS,         ! Left vertex (180°)
+K,5, 0,-SQUARE_SIZE+RADIUS,         ! Bottom vertex (270°)
+
+! Circle boundary keypoints at main axes
+K,6, RADIUS,RADIUS,      ! Circle right (0°)
+K,7, 0,2*RADIUS,      ! Circle top (90°)
+K,8, -RADIUS,RADIUS,     ! Circle left (180°)
+K,9, 0,0,     ! Circle bottom (270°)
+
+! ===============================================
+! CREATE LINES
+! ===============================================
+
+! Square lines (connecting vertices to form the inner square)
+L,2,3    ! Right to Top
+L,3,4    ! Top to Left
+L,4,5    ! Left to Bottom
+L,5,2    ! Bottom to Right
+L,2,6
+L,3,7
+L,4,8
+L,5,9
+
+! Circle arcs (outer boundary)
+LARC,6,7,1,RADIUS   ! Right to NE
+LARC,7,8,1,RADIUS   ! Top to NW
+LARC,8,9,1,RADIUS   ! Left to SW
+LARC,9,6,1,RADIUS   ! Bottom to SE
+
+! ===============================================
+! CREATE AREAS (5 QUADRILATERALS)
+! ===============================================
+
+! Central square area
+A,2,3,4,5
+A,2,6,7,3
+A,3,7,8,4
+A,4,8,9,5
+A,5,9,6,2
+
+! ===============================================
+! MESHING WITH QUADRILATERAL MAPPED ELEMENTS
+! ===============================================
+
+ALLSEL,ALL
+
+! Set element size based on desired mesh density
+ESIZE,RADIUS/15     ! Approximately 15 elements across radius
+
+! Set material and real constant attributes
+AATT, 1, 1, 1, 0
+
+! Set mesh controls for quadrilateral mapped meshing
+! Quadrilateral elements
+MSHAPE,0,2D
+MSHKEY,1           ! Mapped meshing
+! Triangle elements
+!MSHAPE,1,2D
+!MSHKEY,1
+
+! Mesh all areas
+AMESH,ALL
+NUMMRG,NODE, , , ,LOW
+! Optional: Refine mesh if needed
+AREFINE,ALL, , ,1,0,1,1
+
+! ===============================================
+! BOUNDARY CONDITIONS
+! ===============================================
+! Select nodes at bottom (y=0, point O)
+NSEL,S,LOC,Y,0
+NSEL,R,LOC,X,0
+*GET,NODE_O,NODE,0,NUM,MIN  ! Get node number at top center
+D,ALL,ALL,0
+!D,ALL,UX,0          ! Fix vertical displacement at bottom
+!D,ALL,UY,0          ! Fix vertical displacement at bottom
+
+! Select node at top center (point A)
+NSEL,S,LOC,Y,2*RADIUS
+*GET,NODE_A,NODE,0,NUM,MIN  ! Get node number at top center
+! Apply force at point A
+NSEL,ALL
+!F,NODE_A,FY,FORCE   ! Apply downward force
+D,NODE_A,UY,appUy
+D,NODE_A,UX,0
+
+ALLSEL,ALL
+FINISH
+
+! ===============================================
+! SOLUTION
+! ===============================================
+/SOLU
+ANTYPE,STATIC       ! Static analysis
+NLGEOM,OFF          ! Linear analysis
+SOLVE
+FINISH
+
+! ===============================================
+! POST-PROCESSING
+! ===============================================
+/POST1
+SET,FIRST
+
+! Plot deformed shape
+PLDISP,1
+
+! Plot stress distributions
+/DSCALE,ALL,1
+PLNSOL,S,X          ! Stress in X direction
+PLNSOL,S,XY         ! Shear stress
+PLNSOL,S,Y          ! Stress in Y direction  
+
+! Plot strain distributions
+PLNSOL,EPTO,X       ! Strain in X direction
+PLNSOL,EPTO,XY      ! Shear strain
+PLNSOL,EPTO,Y       ! Strain in Y direction
+
+! ===============================================
+! EXTRACT DATA FOR VFM ANALYSIS
+! ===============================================
+! Select all FEM data and extract data
+ALLSEL,ALL
+
+! Create arrays for coordinates and results
+*GET,tnEL,ELEM,,COUNT,,,		! total number of elements over S2
+*GET,emin,ELEM,,NUM,MIN			! find out the minimum element number
+*DIM,COORD_X,ARRAY,tnEL,1			! Xc - X coordinate of the centroid of the elements 
+*DIM,COORD_Y,ARRAY,tnEL,1			! Yc - Y coordinate of the centroid of the elements
+*DIM,DISP_X,ARRAY,tnEL,1			! Ux - x displacement component at the centroid of the elements
+*DIM,DISP_Y,ARRAY,tnEL,1			! Ux - x displacement component at the centroid of the elements
+*DIM,STRAIN_X,ARRAY,tnEL,1			! Ex - elements average longitudinal strain component 
+*DIM,STRAIN_Y,ARRAY,tnEL,1			! Ey - elements average transverse strain component
+*DIM,STRAIN_XY,ARRAY,tnEL,1		! Exy - elements average shear strain component
+*DIM,ELEM_VOLUME,ARRAY,tnEL,1
+*DIM,ELEM_AREA,ARRAY,tnEL,1
+
+! -
+ETABLE,etXc,CENT,X			! defines an element table etXc for the centroid-X location
+ETABLE,etYc,CENT,Y
+ETABLE,etUx,U,X 
+ETABLE,etUy,U,Y 
+ETABLE,etEx,EPEL,X 
+ETABLE,etEy,EPEL,Y 
+ETABLE,etExy,EPEL,XY
+ETABLE,EVOL,VOLU
+! -
+*VGET,COORD_X(1),ELEM,emin,ETAB,etXc	 ! Xc
+*VGET,COORD_Y(1),ELEM,emin,ETAB,etYc	 ! Yc
+*VGET,DISP_X(1),ELEM,emin,ETAB,etUx	 ! Ux
+*VGET,DISP_Y(1),ELEM,emin,ETAB,etUy	 ! Uy
+*VGET,STRAIN_X(1),ELEM,emin,ETAB,etEx	 ! ex
+*VGET,STRAIN_Y(1),ELEM,emin,ETAB,etEy	 ! ey
+*VGET,STRAIN_XY(1),ELEM,emin,ETAB,etExy ! exy
+*VGET,ELEM_VOLUME(1),ELEM,emin,ETAB,EVOL
+
+*VOPER,ELEM_AREA(1),ELEM_VOLUME(1),DIV,THICK
+
+! (Optional) quick checks
+*VSCFUN,TOT_AREA,SUM,ELEM_AREA(1)
+*STATUS,TOT_AREA
+! %%%%
+
+! Write data to file for VFM processing
+*CREATE,export_data
+*CFOPEN,FEM2VFM,csv,,WRITE
+*VWRITE,'Area_mm2',';','X_Coord',';','Y_Coord',';','U_X',';','U_Y',';','Strain_X',';','Strain_Y',';','Strain_XY'
+(A12, A1, A12, A1, A12, A1, A12, A1, A12, A1, A12, A1, A12, A1, A12)
+*VWRITE, ELEM_AREA(1),';',COORD_X(1),';',COORD_Y(1),';',DISP_X(1),';',DISP_Y(1),';',STRAIN_X(1),';',STRAIN_Y(1),';',STRAIN_XY(1)
+(E12.4, A1, F12.6, A1, F12.6, A1, E12.4, A1,  E12.4, A1, E12.4, A1, E12.4, A1, E12.4)
+*CFCLOS
+*END
+*USE,export_data
+
+! ===============================================
+! REACTION FORCE CHECK
+! ===============================================
+! Check reaction force at bottom support
+NSEL,S,NODE,,NODE_O ! To select the node stored in the variable NODE_O
+FSUM ! Sum forces at selected node(s)
+*GET,REACT_Y,FSUM,0,ITEM,FY
+*STATUS,REACT_Y
+
+! ===============================================
+! VERIFICATION OUTPUT
+! ===============================================
+*CREATE,temp_output
+*CFOPEN,verification,txt,,WRITE
+*VWRITE,'DISC COMPRESSION TEST RESULTS'
+(A30)
+*VWRITE,'Applied Force [N]:',FORCE
+(A18,F10.1)
+*VWRITE,'Reaction Force [N]:',REACT_Y
+(A19,F10.1)
+*VWRITE,'Force Balance [N]:',FORCE+REACT_Y
+(A18,F10.1)
+*VWRITE,'Disc Radius [m]:',RADIUS
+(A17,F8.4)
+*VWRITE,'Disc Thickness [m]:',THICK
+(A20,F8.4)
+*VWRITE,'Young Modulus [Pa]:',200E9
+(A20,E12.4)
+*VWRITE,'Poisson Ratio:',0.3
+(A15,F6.2)
+*CFCLOS
+*END
+*USE,temp_output
+
+!* Containing the nodal positions and the link between elements and nodes
+/INPUT,ansys2matchid_I_NodesElements,mac
+
+!* Ĉurrent coordinate for every node at the corresponding load step
+/INPUT,ansys2matchid_II_Current_Coordinates,mac
+
+FINISH
+
+!/COM, Analysis complete. Files created:
+!/COM, - strain_data.txt: Nodal coordinates and strain data for VFM
+!/COM, - verification.txt: Analysis summary and verification data

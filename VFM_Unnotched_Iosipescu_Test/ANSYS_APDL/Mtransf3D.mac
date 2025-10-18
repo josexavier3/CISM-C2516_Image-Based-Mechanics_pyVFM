@@ -1,0 +1,62 @@
+!     ROTINE FOR THE TRANSFORMATION: [S] - > [S]' (3D) 			 
+! Introduction of direct cosenos: 
+! l1=cos(X,L)-(X,L)=A1, m1=cos(Y,L)-(Y,L)=A2, n1=cos(Z,L)-(Z,L)=A3
+! l2=cos(X,R)-(X,R)=B1, m2=cos(Y,R)-(Y,R)=B2, n2=cos(Z,R)-(Z,R)=B3
+! l3=cos(X,T)-(X,T)=C1, m3=cos(Y,T)-(Y,T)=C2, n3=cos(Z,T)-(Z,T)=C3
+l1=COS(ang)
+m1=COS(90-ang)
+n1=COS(90)
+l2=COS(90+ang)
+m2=COS(ang)
+n2=COS(90)
+l3=COS(90)
+m3=COS(90)
+n3=COS(0)
+*DIM,S_rq,ARRAY,6,6
+*DIM,T,ARRAY,6,6			! Matrix of transformation 
+*DIM,transT,ARRAY,6,6		! Transpose of the matrix of transformation 
+*DIM,pmTS,ARRAY,6,6		! Product of matrices [T][S]
+T(1,1)=l1**2
+T(1,2)=l2**2
+T(1,3)=l3**2
+T(1,4)=l1*l2
+T(1,5)=l2*l3
+T(1,6)=l1*l3
+T(2,1)=m1**2
+T(2,2)=m2**2
+T(2,3)=m3**2  
+T(2,4)=m1*m2
+T(2,5)=m2*m3
+T(2,6)=m1*m3
+T(3,1)=n1**2
+T(3,2)=n2**2
+T(3,3)=n3**2  
+T(3,4)=n1*n2
+T(3,5)=n2*n3  
+T(3,6)=n1*n3
+T(4,1)=2*l1*m1
+T(4,2)=2*l2*m2
+T(4,3)=2*l3*m3
+T(4,4)=l1*m2+l2*m1
+T(4,5)=l2*m3+l3*m2
+T(4,6)=l1*m3+l3*m1
+T(5,1)=2*m1*n1
+T(5,2)=2*m2*n2
+T(5,3)=2*m3*n3
+T(5,4)=m1*n2+m2*n1
+T(5,5)=m2*n3+m3*n2
+T(5,6)=m1*n3+m3*n1
+T(6,1)=2*l1*n1
+T(6,2)=2*l2*n2
+T(6,3)=2*l3*n3
+T(6,4)=l1*n2+l2*n1
+T(6,5)=l2*n3+l3*n2
+T(6,6)=l1*n3+l3*n1
+! MATRIZ DE ELASTICIDADE NUM REF. QUALQUER:
+!------------------------------------------
+*MOPER,pmTS(1,1),T(1,1),MULT,S(1,1)	
+*MFUN,transT(1,1),TRAN,T(1,1)
+*MOPER,S_rq(1,1),pmTS(1,1),MULT,transT(1,1)	
+
+
+

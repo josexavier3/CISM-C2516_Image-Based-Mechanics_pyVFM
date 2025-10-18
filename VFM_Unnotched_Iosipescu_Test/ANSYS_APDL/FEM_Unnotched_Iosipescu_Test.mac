@@ -1,0 +1,705 @@
+!===============================================================
+! Virtual Fields Method (VFM)
+!---------------------------------------------------------------
+! Case Study: Unnotched Iosipescu Test for Orthotropic Material
+!
+! Based on:
+! "The Virtual Fields Method: Extracting Constitutive Mechanical
+! Parameters from Full-Field Deformation Measurements"
+! by F. Pierron and M. Grédiac
+!
+! Developed by:
+! José Xavier
+! Universidade NOVA de Lisboa, NOVA FCT, UNIDEMI
+! https://userweb.fct.unl.pt/~jmc.xavier/
+!
+! Course Context:
+! CISM Advanced School
+! "Image-Based Mechanics: An Overview of Experimental and
+! Numerical Approaches" — Udine, Italy, 6–10 October 2025
+!
+! Coordinators: Julien Réthoré and José Xavier
+! Lecture: "The Virtual Fields Method — Hands-On Session"
+!
+! More information:
+! https://cism.it/en/activities/courses/C2516/
+!===============================================================
+!
+! VARIABLE NAMING CONVENTION:
+!---------------------------------------------------------------
+! Geometry:
+!   L      = Length of the region of interest (ROI) at specimen center
+!   W      = Specimen width
+!   Th     = Specimen thickness
+!   tL     = Specimen total length
+!   IBC    = Inner boundary condition distance
+!   OBC    = Outer boundary condition distance
+!   ang    = Off-axis angle (degrees)
+!
+! Mesh discretization:
+!   LdH1   = Number of horizontal divisions (outer wedge zones)
+!   LdH2   = Number of horizontal divisions (transition zones)
+!   LdH3   = Number of horizontal divisions (central ROI - S2 region)
+!   LdV    = Number of vertical divisions
+!
+! Material properties (Orthotropic):
+!   EL, ER, ET       = Young's moduli (L=Longitudinal, R=Radial, T=Tangential)
+!   GLR, GLT, GRT    = Shear moduli
+!   CPRT, CPTL, CPLR = Poisson's ratios (e.g., CPRT = nu_RT)
+!
+! Boundary conditions:
+!   uy     = Prescribed vertical displacement (m)
+!   condF  = Boundary condition type: 1=base, 2=iterative
+!
+! Solution:
+!   SOL_el_nod = Solution output type: 1=element centroid, 2=nodal
+!
+! Regions:
+!   S1     = Left wedge region (element component)
+!   S2     = Central region of interest (element component)
+!   S3     = Right wedge region (element component)
+!
+! Input/Output:
+!   Input:  inputopt.dat (23 design variables)
+!   Output: scalarsFE.csv (global results: P, geometry)
+!           FEM2VFM.csv (element solution fields)
+!           nodal_fieldsFE.csv (nodal solution fields)
+!
+! Dependencies:
+!   Mtransf3D.mac (material transformation macro)
+!   ansys2matchid_I_NodesElements.mac (optional export)
+!   ansys2matchid_II_Current_Coordinates.mac (optional export)
+!===============================================================
+
+
+/CLEAR,START
+
+/PREP7
+
+!===============================================================
+! READ INPUT PARAMETERS FROM FILE
+!===============================================================
+! Local variables from MATLAB or external optimization:
+*DIM,desgvar,ARRAY,23,1
+*CREATE,ansuitmp
+*VREAD,desgvar(1),inputopt,dat
+(E16.10)
+ang=desgvar(1,1)           ! Off-axis angle (degrees)
+L=desgvar(2,1)             ! Length of the ROI in the center of the specimen
+W=desgvar(3,1)             ! Specimen width (e.g., 20 mm)
+Th=desgvar(4,1)            ! Specimen thickness
+tL=desgvar(5,1)            ! Specimen total length
+OBC=desgvar(6,1)           ! Outer boundary condition distance
+IBC=desgvar(7,1)           ! Inner boundary condition distance
+EL=desgvar(8,1)            ! Longitudinal Young's modulus (Pa)
+ER=desgvar(9,1)            ! Radial Young's modulus (Pa)
+ET=desgvar(10,1)           ! Tangential Young's modulus (Pa)
+CPRT=desgvar(11,1)         ! Poisson's ratio nu_RT
+CPTL=desgvar(12,1)         ! Poisson's ratio nu_TL
+CPLR=desgvar(13,1)         ! Poisson's ratio nu_LR
+GRT=desgvar(14,1)          ! Shear modulus G_RT (Pa)
+GLT=desgvar(15,1)          ! Shear modulus G_LT (Pa)
+GLR=desgvar(16,1)          ! Shear modulus G_LR (Pa)
+LdH3=desgvar(17,1)         ! Number of horizontal divisions in S2 region
+LdV=desgvar(18,1)          ! Number of vertical divisions in S2 region
+LdH1=desgvar(19,1)         ! Number of divisions in outer wedge zones
+LdH2=desgvar(20,1)         ! Number of divisions in transition zones
+uy=desgvar(21,1)           ! Prescribed vertical displacement (m)
+condF=desgvar(22,1)        ! B.C. type: 1=base, 2=iterative
+SOL_el_nod=desgvar(23,1)   ! Output type: 1=element, 2=nodal
+*END
+/INPUT,ansuitmp
+
+! Constants
+pi=3.1415926536
+*AFUN,DEG                  ! Angular functions use degrees
+
+!===============================================================
+! GEOMETRIC MODEL (PLANE X,Y)
+!===============================================================
+! Specimen layout (top view):
+!
+!          y ^
+!       _____|_____________
+!      |     |      |      |
+!  LdV |  S1 | S2   |  S3  |  --> x
+!      |_____|______|______|
+!          LdH1 LdH2 LdH3
+!
+! Keypoint numbering:
+!     7----8----9----10---11---12  (top, y=+W/2)
+!     |    |    |    |    |    |
+!     1----2----3----4----5----6  (bottom, y=-W/2)
+!   x=-IBC  -(IBC-OBC)  0   L  L+(IBC-OBC)  L+IBC
+
+! Bottom keypoints (y = -W/2)
+K,1,-IBC,-W/2
+K,2,-(IBC-OBC),-W/2
+K,3,0,-W/2
+K,4,L,-W/2
+K,5,L+(IBC-OBC),-W/2
+K,6,L+IBC,-W/2
+
+! Top keypoints (y = +W/2)
+K,7,-IBC,W/2
+K,8,-(IBC-OBC),W/2
+K,9,0,W/2
+K,10,L,W/2
+K,11,L+(IBC-OBC),W/2
+K,12,L+IBC,W/2
+
+! Create areas
+A,1,2,8,7      ! Left outer wedge
+A,2,3,9,8      ! Left transition
+A,3,4,10,9     ! Central ROI (S2)
+A,4,5,11,10    ! Right transition
+A,5,6,12,11    ! Right outer wedge
+
+!===============================================================
+! ELEMENT TYPE DEFINITION
+!===============================================================
+! Element Type 1: PLANE182 (4-node quadrilateral)
+ET,1,PLANE182
+KEYOPT,1,1,0   ! Full integration
+KEYOPT,1,3,3   ! Plane stress with thickness input
+KEYOPT,1,6,0   ! Pure displacement formulation
+! 4 nodes having 2 DOF: UX, UY
+! Element coordinate system parallel to global coordinate system
+
+! Element Type 2: PLANE183 (8-node quadrilateral - if needed)
+ET,2,PLANE183
+KEYOPT,2,1,0   ! Full integration
+KEYOPT,2,3,3   ! Plane stress with thickness input
+KEYOPT,2,6,0   ! Pure displacement formulation
+! 8 nodes having 2 DOF: UX, UY
+
+! Real constants
+R,1,Th         ! Thickness
+
+!===============================================================
+! MATERIAL PROPERTIES (ORTHOTROPIC)
+!===============================================================
+! Compute additional Poisson's ratios using symmetry
+CPTR=(ET/ER)*CPRT
+CPLT=(EL/ET)*CPTL
+CPRL=(ER/EL)*CPLR
+
+! Reduced stiffness terms Q_ij in the LR symmetry plane:
+! Qxx = EL/(1-CPLR*CPRL)
+! Qyy = ER/(1-CPLR*CPRL)
+! Qxy = (CPLR*ER)/(1-CPLR*CPRL)
+! Qss = GLR
+
+! Compliance matrix in the orthotropic material system [S]:
+! Matrix indices: 1=L (Longitudinal), 2=R (Radial), 3=T (Tangential)
+*DIM,S,ARRAY,6,6
+
+! Row 1
+S(1,1)=1/EL
+S(2,1)=-CPLR/EL
+S(3,1)=-CPLT/EL
+S(4,1)=0
+S(5,1)=0
+S(6,1)=0
+
+! Row 2
+S(2,2)=1/ER
+S(3,2)=-CPRT/ER
+S(4,2)=0
+S(5,2)=0
+S(6,2)=0
+
+! Row 3
+S(3,3)=1/ET
+S(4,3)=0
+S(5,3)=0
+S(6,3)=0
+
+! Rows 4-6 (shear terms)
+S(4,4)=1/GLR
+S(5,4)=0
+S(6,4)=0
+S(5,5)=1/GRT
+S(6,5)=0
+S(6,6)=1/GLT
+
+! Apply symmetry
+S(1,2)=S(2,1)
+S(1,3)=S(3,1)
+S(2,3)=S(3,2)
+
+! Transform compliance matrix to specimen coordinate system [S]'
+! using external macro (handles rotation by angle 'ang')
+/INPUT,Mtransf3D,mac
+
+! Define anisotropic elastic material
+TB,ANEL,1,,,1  ! Anisotropic elastic, material 1, compliance matrix
+! Note: Stress directions parallel to element coordinate system
+! Element coordinate system is parallel to global coordinate system
+TBDATA,,S_rq(1,1),S_rq(2,1),S_rq(3,1),S_rq(4,1),S_rq(5,1),S_rq(6,1)
+TBDATA,,S_rq(2,2),S_rq(3,2),S_rq(4,2),S_rq(5,2),S_rq(6,2),S_rq(3,3)
+TBDATA,,S_rq(4,3),S_rq(5,3),S_rq(6,3),S_rq(4,4),S_rq(5,4),S_rq(6,4)
+TBDATA,,S_rq(5,5),S_rq(6,5),S_rq(6,6)
+
+!===============================================================
+! MESH DISCRETIZATION
+!===============================================================
+! Line division (specify number of divisions for each segment)
+
+! Bottom horizontal lines
+LSEL,S,LOC,X,-IBC,-(IBC-OBC)
+LSEL,R,LOC,Y,-W/2
+LESIZE,ALL,,,LdH1,,,,,0
+
+LSEL,S,LOC,X,-(IBC-OBC),0
+LSEL,R,LOC,Y,-W/2
+LESIZE,ALL,,,LdH2,,,,,0
+
+LSEL,S,LOC,X,0,L
+LSEL,R,LOC,Y,-W/2
+LESIZE,ALL,,,LdH3,,,,,0
+
+LSEL,S,LOC,X,L,L+(IBC-OBC)
+LSEL,R,LOC,Y,-W/2
+LESIZE,ALL,,,LdH2,,,,,0
+
+LSEL,S,LOC,X,L+(IBC-OBC),L+IBC
+LSEL,R,LOC,Y,-W/2
+LESIZE,ALL,,,LdH1,,,,,0
+
+! Vertical lines
+LSEL,S,LOC,X,-IBC
+LESIZE,ALL,,,LdV,,,,,0
+
+!===============================================================
+! MESH GENERATION
+!===============================================================
+! Set attributes for meshing
+AATT,1,1,1,0   ! Material 1, Real set 1, Element type 1
+
+! Generate mapped mesh with quadrilateral elements
+ALLSEL,ALL
+MSHKEY,1       ! Mapped meshing
+MSHAPE,0,2D    ! Quadrilateral-shaped elements
+AMESH,ALL
+
+! Create element components for each region
+ASEL,S,LOC,X,-IBC,0
+ESLA,S,1
+CM,S1,ELEM     ! Left wedge region
+
+ASEL,S,LOC,X,0,L
+ESLA,S,1
+CM,S2,ELEM     ! Central ROI region
+
+ASEL,S,LOC,X,L,L+IBC
+ESLA,S,1
+CM,S3,ELEM     ! Right wedge region
+
+ALLSEL,ALL
+FINISH
+
+!===============================================================
+! BOUNDARY CONDITIONS AND SOLUTION
+!===============================================================
+*IF,condF,EQ,1,THEN
+!---------------------------------------------------------------
+! METHOD 1: BASE PRESCRIBED DISPLACEMENT
+!---------------------------------------------------------------
+! Initialize parameters for boundary node identification
+telcse=OBC/LdH1                    ! Element length, left upper wedge
+telcie1=(IBC-OBC)/LdH2             ! Element length, left lower wedge (inner)
+telcie2=telcse
+telcsd1=telcie1                    ! Element length, right upper wedge
+telcsd2=telcie2
+telcid=telcse                      ! Element length, right lower wedge
+nnlcse=LdH1+1                      ! Number of nodes, left upper contact
+nnlcie=LdH2+LdH1+1                 ! Number of nodes, left lower contact
+cnibc=LdH2+1
+nnlcsd=nnlcie                      ! Number of nodes, right upper contact
+nnlcid=nnlcse                      ! Number of nodes, right lower contact
+
+/SOLU
+ANTYPE,STATIC
+ALLSEL,ALL
+DDELE,ALL,ALL  ! Delete all degrees of freedom at any node
+
+! Left upper contact nodes (y = +W/2, constrained to UY=0)
+*DIM,lnlcse,ARRAY,nnlcse,1
+contd1a=0
+*DO,i,1,nnlcse,1
+    lnlcse(i)=NODE((-IBC)+(telcse)*contd1a,W/2,0)
+    contd1a=contd1a+1
+    D,lnlcse(i),,0,,,,UY,,,,,      ! UY = 0
+*ENDDO
+D,lnlcse(1),,0,,,,UX,,,,,          ! Constrain rigid body motion in X
+
+! Left lower contact nodes (y = -W/2, constrained to UY=0)
+*DIM,lnlcie,ARRAY,nnlcie,1
+contd2a=0
+contd2b=1
+*DO,i,1,nnlcie,1
+    *IF,i,LE,cnibc,THEN
+        lnlcie(i)=NODE(-(telcie1)*contd2a,-W/2,0)
+        contd2a=contd2a+1
+    *ELSE
+        lnlcie(i)=NODE(-(IBC-OBC)-(telcie2)*contd2b,-W/2,0)
+        contd2b=contd2b+1
+    *ENDIF
+    D,lnlcie(i),,0,,,,UY,,,,,      ! UY = 0
+*ENDDO
+
+! Right upper contact nodes (y = +W/2, constrained to UY = -uy)
+*DIM,lnlcsd,ARRAY,nnlcsd,1
+contd3a=0
+contd3b=1
+*DO,i,1,nnlcsd,1
+    *IF,i,LE,cnibc,THEN
+        lnlcsd(i)=NODE(L+(telcsd1)*contd3a,W/2,0)
+        contd3a=contd3a+1
+    *ELSE
+        lnlcsd(i)=NODE(L+(IBC-OBC)+(telcsd2)*contd3b,W/2,0)
+        contd3b=contd3b+1
+    *ENDIF
+    D,lnlcsd(i),,-uy,,,,UY,,,,,    ! UY = -uy
+*ENDDO
+
+! Right lower contact nodes (y = -W/2, constrained to UY = -uy)
+*DIM,lnlcid,ARRAY,nnlcid,1
+contd4a=0
+*DO,i,1,nnlcid,1
+    lnlcid(i)=NODE(L+IBC-(telcid)*contd4a,-W/2,0)
+    contd4a=contd4a+1
+    D,lnlcid(i),,-uy,,,,UY,,,,,    ! UY = -uy
+*ENDDO
+
+ALLSEL,ALL
+SOLVE
+FINISH
+
+!---------------------------------------------------------------
+*ELSEIF,condF,EQ,2
+!---------------------------------------------------------------
+! METHOD 2: ITERATIVE PRESCRIBED DISPLACEMENT
+!---------------------------------------------------------------
+! This method iteratively adjusts boundary conditions to ensure
+! physically realistic contact forces (compression only where expected)
+
+! Initialize parameters
+iteri=0
+telcse=OBC/LdH1
+telcie1=(IBC-OBC)/LdH2
+telcie2=telcse
+telcsd1=telcie1
+telcsd2=telcie2
+telcid=telcse
+nnlcse=LdH1+1
+nnlcie=LdH2+LdH1+1
+cnibc=LdH2+1
+nnlcsd=nnlcie
+nnlcid=nnlcse
+
+:INICIO
+/SOLU
+ANTYPE,STATIC
+ALLSEL,ALL
+DDELE,ALL,ALL
+
+! Left upper contact nodes
+*DIM,lnlcse,ARRAY,nnlcse,1
+contd1a=0
+*DO,i,1,nnlcse,1
+    lnlcse(i)=NODE((-IBC)+(telcse)*contd1a,W/2,0)
+    contd1a=contd1a+1
+    D,lnlcse(i),,0,,,,UY,,,,,
+*ENDDO
+D,lnlcse(1),,0,,,,UX,,,,,
+
+! Left lower contact nodes
+*DIM,lnlcie,ARRAY,nnlcie,1
+contd2a=0
+contd2b=1
+*DO,i,1,nnlcie,1
+    *IF,i,LE,cnibc,THEN
+        lnlcie(i)=NODE(-(telcie1)*contd2a,-W/2,0)
+        contd2a=contd2a+1
+    *ELSE
+        lnlcie(i)=NODE(-(IBC-OBC)-(telcie2)*contd2b,-W/2,0)
+        contd2b=contd2b+1
+    *ENDIF
+    D,lnlcie(i),,0,,,,UY,,,,,
+*ENDDO
+
+! Right upper contact nodes
+*DIM,lnlcsd,ARRAY,nnlcsd,1
+contd3a=0
+contd3b=1
+*DO,i,1,nnlcsd,1
+    *IF,i,LE,cnibc,THEN
+        lnlcsd(i)=NODE(L+(telcsd1)*contd3a,W/2,0)
+        contd3a=contd3a+1
+    *ELSE
+        lnlcsd(i)=NODE(L+(IBC-OBC)+(telcsd2)*contd3b,W/2,0)
+        contd3b=contd3b+1
+    *ENDIF
+    D,lnlcsd(i),,-uy,,,,UY,,,,,
+*ENDDO
+
+! Right lower contact nodes
+*DIM,lnlcid,ARRAY,nnlcid,1
+contd4a=0
+*DO,i,1,nnlcid,1
+    lnlcid(i)=NODE(L+IBC-(telcid)*contd4a,-W/2,0)
+    contd4a=contd4a+1
+    D,lnlcid(i),,-uy,,,,UY,,,,,
+*ENDDO
+
+ALLSEL,ALL
+SOLVE
+FINISH
+
+/POST1
+SET,FIRST
+
+! Check reaction forces at left upper contact
+*DIM,fr_se,ARRAY,nnlcse,1
+controlse=0
+*DO,i,1,nnlcse,1
+    *GET,fr_se(i),NODE,lnlcse(i),RF,FY
+    *IF,fr_se(i),LE,0,THEN
+        controlse=controlse+1
+    *ENDIF
+*ENDDO
+
+! Check reaction forces at left lower contact
+*DIM,fr_ie,ARRAY,nnlcie,1
+controlie=0
+*DO,i,1,nnlcie,1
+    *GET,fr_ie(i),NODE,lnlcie(i),RF,FY
+    *IF,fr_ie(i),GE,0,THEN
+        controlie=controlie+1
+    *ENDIF
+*ENDDO
+
+! Check reaction forces at right upper contact
+*DIM,fr_sd,ARRAY,nnlcsd,1
+controlsd=0
+*DO,i,1,nnlcsd,1
+    *GET,fr_sd(i),NODE,lnlcsd(i),RF,FY
+    *IF,fr_sd(i),LE,0,THEN
+        controlsd=controlsd+1
+    *ENDIF
+*ENDDO
+
+! Check reaction forces at right lower contact
+*DIM,fr_id,ARRAY,nnlcid,1
+controlid=0
+*DO,i,1,nnlcid,1
+    *GET,fr_id(i),NODE,lnlcid(i),RF,FY
+    *IF,fr_id(i),GE,0,THEN
+        controlid=controlid+1
+    *ENDIF
+*ENDDO
+
+! Stopping criterion: all reaction forces have correct sign
+*IF,nnlcse,EQ,controlse,AND,nnlcie,EQ,controlie,:STOP
+
+! Update node counts for next iteration
+nnlcse=controlse
+nnlcie=controlie
+nnlcsd=controlsd
+nnlcid=controlid
+
+! Clear arrays for next iteration
+lnlcse=
+lnlcie=
+lnlcsd=
+lnlcid=
+fr_se=
+fr_ie=
+fr_sd=
+fr_id=
+
+iteri=iteri+1
+FINISH
+*GO,:INICIO
+
+:STOP
+FINISH
+
+*ENDIF
+
+!===============================================================
+! POST-PROCESSING: SCALAR RESULTS
+!===============================================================
+/POST1
+SET,FIRST
+
+! Calculate total reaction force (load P)
+*DIM,rf1,ARRAY,nnlcsd,1
+*DIM,rf2,ARRAY,nnlcid,1
+
+! Sum forces at right upper contact
+*DO,i,1,nnlcsd,1
+    *GET,rf1(i),NODE,lnlcsd(i),RF,FY
+*ENDDO
+*VSCFUN,P1,SUM,rf1(1)
+
+! Sum forces at right lower contact
+*DO,i,1,nnlcid,1
+    *GET,rf2(i),NODE,lnlcid(i),RF,FY
+*ENDDO
+*VSCFUN,P2,SUM,rf2(1)
+
+P=P1+P2  ! Total load measured by testing machine
+
+! Write scalar results to CSV file
+*CREATE,ansuitmp
+*CFOPEN,scalarsFE,csv,,
+*VWRITE,'Angle = ',ang*1e3
+(A12,F12.3,A8)
+*VWRITE,'Length = ',L*1e3
+(A12,F12.3,A8)
+*VWRITE,'Width = ',W*1e3
+(A12,F12.3,A8)
+*VWRITE,'Thick = ',Th*1e3
+(A12,F12.3,A8)
+*VWRITE,'P = ',P
+(A12,F12.3,A8)
+*CFCLOS
+*END
+*USE,ansuitmp
+
+!===============================================================
+! POST-PROCESSING: FIELD RESULTS
+!===============================================================
+CMSEL,S,S2  ! Select elements in region S2 (central ROI)
+
+*IF,SOL_el_nod,EQ,1,THEN
+!---------------------------------------------------------------
+! ELEMENT SOLUTION (results at element centroids)
+!---------------------------------------------------------------
+*GET,tnEL,ELEM,,COUNT,,,           ! Total number of elements in S2
+*GET,emin,ELEM,,NUM,MIN            ! Minimum element number
+
+! Define arrays for element results
+*DIM,Xc_S2,ARRAY,tnEL,1            ! X coordinate of centroid
+*DIM,Yc_S2,ARRAY,tnEL,1            ! Y coordinate of centroid
+*DIM,Ux_S2,ARRAY,tnEL,1            ! X displacement at centroid
+*DIM,Uy_S2,ARRAY,tnEL,1            ! Y displacement at centroid
+*DIM,Ex_S2,ARRAY,tnEL,1            ! Average longitudinal strain
+*DIM,Ey_S2,ARRAY,tnEL,1            ! Average transverse strain
+*DIM,Exy_S2,ARRAY,tnEL,1           ! Average shear strain
+*DIM,ELEM_VOLUME,ARRAY,tnEL,1
+*DIM,ELEM_AREA,ARRAY,tnEL,1
+
+! Create element tables
+ETABLE,etXc,CENT,X
+ETABLE,etYc,CENT,Y
+ETABLE,etUx,U,X
+ETABLE,etUy,U,Y
+ETABLE,etEx,EPEL,X
+ETABLE,etEy,EPEL,Y
+ETABLE,etExy,EPEL,XY
+ETABLE,EVOL,VOLU
+
+! Extract data from element tables
+*VGET,Xc_S2(1),ELEM,emin,ETAB,etXc
+*VGET,Yc_S2(1),ELEM,emin,ETAB,etYc
+*VGET,Ux_S2(1),ELEM,emin,ETAB,etUx
+*VGET,Uy_S2(1),ELEM,emin,ETAB,etUy
+*VGET,Ex_S2(1),ELEM,emin,ETAB,etEx
+*VGET,Ey_S2(1),ELEM,emin,ETAB,etEy
+*VGET,Exy_S2(1),ELEM,emin,ETAB,etExy
+*VGET,ELEM_VOLUME(1),ELEM,emin,ETAB,EVOL
+
+! Calculate element areas
+*VOPER,ELEM_AREA(1),ELEM_VOLUME(1),DIV,Th
+
+! Convert units for output (m to mm, mm^2)
+*VOPER,ELEM_AREA(1),ELEM_AREA(1),MULT,1e6
+*VOPER,Xc_S2(1),Xc_S2(1),MULT,1e3
+*VOPER,Yc_S2(1),Yc_S2(1),MULT,1e3
+*VOPER,Ux_S2(1),Ux_S2(1),MULT,1e3
+*VOPER,Uy_S2(1),Uy_S2(1),MULT,1e3
+
+! Optional: verify total area
+*VSCFUN,TOT_AREA,SUM,ELEM_AREA(1)
+*STATUS,TOT_AREA
+
+! Write element results to CSV file
+*CREATE,ansuitmp
+*CFOPEN,FEM2VFM,csv,,WRITE
+*VWRITE,'Area','X_Coord','Y_Coord','U_X','U_Y','Eps_X','Eps_Y','Eps_XY'
+(A12,A12,A12,A12,A12,A12,A12,A12)
+*VWRITE,ELEM_AREA(1),Xc_S2(1),Yc_S2(1),Ux_S2(1),Uy_S2(1),Ex_S2(1),Ey_S2(1),Exy_S2(1)
+(F12.4,F12.4,F12.4,E18.9,E18.9,E18.9,E18.9,E18.9)
+*CFCLOS
+*END
+*USE,ansuitmp
+
+!---------------------------------------------------------------
+*ELSEIF,SOL_el_nod,EQ,2
+!---------------------------------------------------------------
+! NODAL SOLUTION (results at nodes)
+!---------------------------------------------------------------
+NSLE,S,1
+*GET,nodesS2,NODE,,COUNT           ! Total number of nodes in S2
+
+! Define arrays for nodal results
+*DIM,nS2,ARRAY,nodesS2,1           ! Node numbers
+*DIM,xn_S2,ARRAY,nodesS2,1         ! X nodal coordinates
+*DIM,yn_S2,ARRAY,nodesS2,1         ! Y nodal coordinates
+*DIM,uxn_S2,ARRAY,nodesS2,1        ! X displacement
+*DIM,uyn_S2,ARRAY,nodesS2,1        ! Y displacement
+*DIM,exn_S2,ARRAY,nodesS2,1        ! X normal strain
+*DIM,eyn_S2,ARRAY,nodesS2,1        ! Y normal strain
+*DIM,exyn_S2,ARRAY,nodesS2,1       ! XY shear strain
+
+! Calculate element sizes
+EsizeX=L/LdH3
+EsizeY=W/LdV
+
+! Generate node list (structured grid in S2 region)
+ctdSX=0
+ctdSY=0
+*DO,i,1,nodesS2,1
+    *IF,W/2-EsizeY*ctdSY,LT,-W/2,THEN
+        ctdSX=ctdSX+1
+        ctdSY=0
+    *ENDIF
+    nS2(i)=NODE(EsizeX*ctdSX,W/2-EsizeY*ctdSY,0)
+    ctdSY=ctdSY+1
+*ENDDO
+
+! Extract nodal results
+*DO,i,1,nodesS2,1
+    *GET,xn_S2(i),NODE,nS2(i),LOC,X
+    *GET,yn_S2(i),NODE,nS2(i),LOC,Y
+    *GET,uxn_S2(i),NODE,nS2(i),U,X
+    *GET,uyn_S2(i),NODE,nS2(i),U,Y
+    *GET,exn_S2(i),NODE,nS2(i),EPEL,X
+    *GET,eyn_S2(i),NODE,nS2(i),EPEL,Y
+    *GET,exyn_S2(i),NODE,nS2(i),EPEL,XY
+*ENDDO
+
+! Write nodal results to CSV file
+*CREATE,ansuitmp
+*CFOPEN,nodal_fieldsFE,csv,,
+*VWRITE,xn_S2(1),yn_S2(1),uxn_S2(1),uyn_S2(1),exn_S2(1),eyn_S2(1),exyn_S2(1)
+(F10.6,'  ',F10.6,'  ',E16.10,'  ',E16.10,'  ',E16.10,'  ',E16.10,'  ',E16.10)
+*CFCLOS
+*END
+*USE,ansuitmp
+
+*ENDIF
+
+!===============================================================
+! VISUALIZATION AND FINISH
+!===============================================================
+PLDISP,1  ! Plot deformed shape
+FINISH
+
+!===============================================================
+! END OF SCRIPT
+!===============================================================
