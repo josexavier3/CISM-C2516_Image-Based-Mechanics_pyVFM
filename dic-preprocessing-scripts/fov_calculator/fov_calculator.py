@@ -116,7 +116,7 @@ def interactive_fov_calculator():
 
 if __name__ == "__main__":
     # Example calculation
-    focal_length = 50  # mm
+    focal_length = 200  # mm
     sensor_size = 1.  # inches (1.1" sensor); 1/3.2", 1/2.5", 1/2.3", 2/3", 1", 1.1", 4/3"
     standoff_distance = 500  # mm (example: 50 cm from object)
     
