@@ -30,32 +30,38 @@ by F. Pierron and M. Grédiac
 
 ## 📁 Repository Structure
 ```
-VFM_Unnotched_Iosipescu_Test/
+CISM-C2516_Image-Based-Mechanics_pyVFM/
 │
-├── 1_manuallyVFs/              # Manual virtual fields implementation
-│   └── [Implementation files for manually defined VFs]
+├── VFM_Disk_Compression_Test/
+│   ├── 1_manuallyVFs/                      # Manual virtual fields
+│   ├── ANSYS_APDL/                         # ANSYS finite element models
 │
-├── 2_piecewiseVFs/             # Piecewise virtual fields approach
-│   └── [Implementation files for piecewise VFs]
+├── VFM_Unnotched_Iosipescu_Test/
+│   ├── 1_manuallyVFs/                      # Manual virtual fields
+│   ├── 2_piecewiseVFs/                     # Piecewise virtual fields
+│   ├── FE-Model/                           # FE Model of the test
+│       ├── ANSYS_APDL/                     # ANSYS finite element models
+│       │   ├── Mtransf3D.mac
+│       │   ├── inputopt.dat
+│       │   └── [Other APDL scripts]
+│       └── FEM_Iosipescu_Orthotropic.py    # py-based FE models
 │
-├── ANSYS_APDL/                 # ANSYS APDL finite element models
-│   ├── Mtransf3D.mac           # Material transformation macro
-│   ├── inputopt.dat            # Input file (23 design variables)
-│   └── [Other APDL scripts]
-│
-└── FEM_Iosipescu_Orthotropic.py  # Main Python implementation
-
-dic-preprocessing-scripts/
-│
-├── fov_calculator/
-│   ├── README.md                      # ✅ Detailed FOV docs
-│   ├── fov_calculator.py
-│   └── fov_calculator_gui.py
-│
-└── motion_blur_calculator/
-    ├── README.md                      # ✅ Detailed Motion Blur docs
-    ├── motion_blur_calculator.py
-    └── motion_blur_calculator_gui.py
+└── dic-preprocessing-scripts/
+    │
+    ├── fov_calculator/
+    │   ├── README.md                       # FOV Calculator documentation
+    │   ├── fov_calculator.py               # Core calculator
+    │   └── fov_calculator_gui.py           # GUI application
+    │
+    ├── speckle_size_calculator/
+    │   ├── README.md                       # Speckle size documentation
+    │   ├── speckle_size_calculator.py      # Core calculator
+    │   └── speckle_size_calculator_gui.py  # GUI application
+    │
+    └── motion_blur_calculator/
+        ├── README.md                       # Motion blur documentation
+        ├── motion_blur_calculator.py       # Core calculator
+        └── motion_blur_calculator_gui.py   # GUI application
 ```
 
 ### Root Directory Files
